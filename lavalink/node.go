@@ -215,7 +215,7 @@ func (n *Node) DoJSON(method, path string, d interface{}, genQuery func(q url.Va
 			return
 		}
 
-		r = bytes.NewBuffer(b)
+		r = bytes.NewReader(b)
 	}
 
 	req, err := http.NewRequest(method, n.RestEndpoint, r)
