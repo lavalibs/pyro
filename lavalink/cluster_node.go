@@ -16,10 +16,6 @@ type ClusterNode struct {
 
 // NewClusterNode makes a new cluster node and connects it to a cluster cache
 func NewClusterNode(cache ClusterCache, opts NodeOptions) *ClusterNode {
-	if opts.Cache == nil {
-		opts.Cache = cache
-	}
-
 	n := &ClusterNode{New(opts), http.NewServeMux(), cache}
 	go cache.ConsumeDeaths(n.Name)
 	go n.read()

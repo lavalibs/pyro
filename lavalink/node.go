@@ -21,14 +21,12 @@ type NodeOptions struct {
 	UserID,
 	ShardCount,
 	Name string
-	Cache VoiceUpdateCache
 }
 
 // Node represents a Lavalink node
 type Node struct {
 	NodeOptions
 	Dialer *websocket.Dialer
-	Cache  VoiceUpdateCache
 	Client *http.Client
 
 	conn *websocket.Conn
@@ -41,7 +39,6 @@ func New(options NodeOptions) *Node {
 	return &Node{
 		NodeOptions: options,
 		Dialer:      websocket.DefaultDialer,
-		Cache:       options.Cache,
 		Client:      http.DefaultClient,
 
 		rmux: sync.Mutex{},
@@ -112,33 +109,6 @@ func (n *Node) Play(guildID uint64, track string, start, end int) error {
 	})
 }
 
-// VoiceStateUpdate handles a voice state update packet from Discord
-func (n *Node) VoiceStateUpdate(pk types.VoiceStateUpdate) (bool, error) {
-	if err := n.Cache.SetVoiceState(pk); err != nil {
-		return false, err
-	}
-
-	return n.tryVoiceUpdate(pk.GuildID)
-}
-
-// VoiceServerUpdate handles a voice server update packet from Discord
-func (n *Node) VoiceServerUpdate(pk types.VoiceServerUpdate) (bool, error) {
-	if err := n.Cache.SetVoiceServer(pk); err != nil {
-		return false, err
-	}
-
-	return n.tryVoiceUpdate(pk.GuildID)
-}
-
-func (n *Node) tryVoiceUpdate(guildID uint64) (bool, error) {
-	sess, event, err := n.Cache.GetVoiceUpdate(guildID)
-	if err != nil {
-		return false, err
-	}
-
-	return true, n.VoiceUpdate(guildID, sess, event)
-}
-
 // VoiceUpdate sends a voiceUpdate packet to Lavalink
 func (n *Node) VoiceUpdate(guildID uint64, sessionID string, event types.VoiceServerUpdate) error {
 	return n.Send(types.VoiceUpdate{
@@ -199,13 +169,6 @@ func (n *Node) Destroy(guildID uint64) error {
 		OP:      "destroy",
 		GuildID: guildID,
 	})
-}
-
-// MoveTo moves the player to a new node
-func (n *Node) MoveTo(guildID uint64, new *Node) error {
-	n.Destroy(guildID) // ignore errors here, since the player is being moved
-	_, err := new.tryVoiceUpdate(guildID)
-	return err
 }
 
 func (n *Node) Write(p []byte) (int, error) {
