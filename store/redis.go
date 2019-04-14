@@ -1,4 +1,4 @@
-package cache
+package store
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/lavalibs/pyro/lavalink/types"
 )
+
+//go:generate esc -o scripts.go -pkg store -private redis_scripts
 
 // Key represents a key type
 type Key rune
@@ -29,13 +31,15 @@ const (
 
 // Constants for Redis key prefixes for different data
 const (
-	KeyPrefixPlayerState  Key = iota // k=player, v=JSON state
-	KeyPrefixVoiceSession            // k=guild, v=session ID
-	KeyPrefixVoiceServer             // k=guild, v=JSON voice server
-	KeyPrefixNodeStats               // k=node, v=JSON stats
-	KeyPrefixNodePlayers             // k=node, v[set]=guild
-	KeyPrefixPlayerNode              // k=guild, v=node
-	KeyPrefixNodePackets             // k=node, v[pubsub]=JSON Lavalink ws packet
+	KeyPrefixPlayerState    Key = iota // k=guild, v=JSON state
+	KeyPrefixVoiceSession              // k=guild, v=session ID
+	KeyPrefixVoiceServer               // k=guild, v=JSON voice server
+	KeyPrefixNodeStats                 // k=node, v=JSON stats
+	KeyPrefixNodePlayers               // k=node, v[set]=guild
+	KeyPrefixPlayerNode                // k=guild, v=node
+	KeyPrefixNodePackets               // k=node, v[pubsub]=JSON Lavalink ws packet
+	KeyPrefixPlayerQueue               // k=guild, v[list]=track identifier
+	KeyPrefixPlayerPrevious            // k=guild, v[list]=track identifier
 )
 
 // Redis represents a clustering client. Used 1:1 with Lavalink nodes.
@@ -197,4 +201,51 @@ redis.call('set', KEYS[2], ARGV[2])`, []string{
 	}
 
 	return nil
+}
+
+// RedisQueue represents a song queue in redis
+type RedisQueue struct {
+	r *Redis
+}
+
+// Add adds songs to the end queue
+func (q *RedisQueue) Add(guildID uint64, tracks ...string) error {
+	intr := make([]interface{}, len(tracks))
+	for i, t := range tracks {
+		intr[i] = t
+	}
+	return q.r.LPush(KeyPrefixPlayerQueue.Fmt(guildID), intr...).Err()
+}
+
+// Unshift adds songs to the front of the queue
+func (q *RedisQueue) Unshift(guildID uint64, tracks ...string) error {
+	intr := make([]interface{}, len(tracks))
+	for i, t := range tracks {
+		intr[i] = t
+	}
+	return q.r.RPush(KeyPrefixPlayerQueue.Fmt(guildID), intr...).Err()
+}
+
+// Remove removes a song from the queue at the index
+func (q *RedisQueue) Remove(guildID uint64, index int) error {
+	// TODO: Redis will remove the first occurrance of the element, not the specific index
+	return q.r.Eval(`local index = redis.call('lindex', KEYS[1], ARGV[1])
+redis.call('lrem', KEYS[1], index)`, []string{
+		KeyPrefixPlayerQueue.Fmt(guildID),
+	}, index).Err()
+}
+
+// Next advances the playlist
+func (q *RedisQueue) Next(guildID uint64, count int) (skipped []string, err error) {
+	script, err := _escFSString(false, "multirpoplpush.lua")
+	if err != nil {
+		return
+	}
+
+	res, err := q.r.Eval(script, []string{
+		KeyPrefixPlayerQueue.Fmt(guildID),
+		KeyPrefixPlayerPrevious.Fmt(guildID),
+	}, count).Result()
+	skipped = res.([]string)
+	return
 }

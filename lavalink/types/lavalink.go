@@ -3,13 +3,31 @@ package types
 // LoadType is the type of track that was loaded
 type LoadType = string
 
-// LoadTypeTrackLoaded means that a track was loaded
+// Valid load types
 const (
 	LoadTypeTrackLoaded    LoadType = "TRACK_LOADED"
 	LoadTypePlaylistLoaded LoadType = "PLAYLIST_LOADED"
 	LoadTypeSearchResult   LoadType = "SEARCH_RESULT"
 	LoadTypeNoMatches      LoadType = "NO_MATCHES"
 	LoadTypeLoadFailed     LoadType = "LOAD_FAILED"
+)
+
+// Op is the type of packet received/to send
+type Op = string
+
+// Valid Op codes
+const (
+	OpVoiceUpdate  Op = "voiceUpdate"
+	OpPlay            = "play"
+	OpStop            = "stop"
+	OpPause           = "pause"
+	OpSeek            = "seek"
+	OpVolume          = "volume"
+	OpEqualizer       = "equalizer"
+	OpDestroy         = "destroy"
+	OpPlayerUpdate    = "playerUpdate"
+	OpStats           = "stats"
+	OpEvent           = "event"
 )
 
 // TrackResponse represents a response from the Lavalink rest API
@@ -43,14 +61,14 @@ type TrackInfo struct {
 	URI        string `json:"uri"`
 }
 
-// BasePacket represents a basic Lavalink packet with no OP-specific data
+// BasePacket represents a basic Lavalink packet with no Op-specific data
 type BasePacket struct {
-	OP string `json:"op"`
+	Op string `json:"op"`
 }
 
 // VoiceUpdate represents a voiceUpdate packet sent to Lavalink
 type VoiceUpdate struct {
-	OP        string            `json:"op"`
+	Op        string            `json:"op"`
 	GuildID   uint64            `json:"guildId,string"`
 	SessionID string            `json:"session_id"`
 	Event     VoiceServerUpdate `json:"event"`
@@ -58,7 +76,7 @@ type VoiceUpdate struct {
 
 // Play represents a play packet sent to Lavalink
 type Play struct {
-	OP        string `json:"op"`
+	Op        string `json:"op"`
 	GuildID   uint64 `json:"guildId,string"`
 	Track     string `json:"track"`
 	StartTime int    `json:"startTime,omitempty"`
@@ -67,34 +85,34 @@ type Play struct {
 
 // Stop represents a stop packet sent to Lavalink
 type Stop struct {
-	OP      string `json:"op"`
+	Op      string `json:"op"`
 	GuildID uint64 `json:"guildId,string"`
 }
 
 // Pause represents a pause packet sent to Lavalink
 type Pause struct {
-	OP      string `json:"op"`
+	Op      string `json:"op"`
 	GuildID uint64 `json:"guildId,string"`
 	Pause   bool   `json:"pause"`
 }
 
 // Seek represents a seek packet sent to Lavalink
 type Seek struct {
-	OP       string `json:"op"`
+	Op       string `json:"op"`
 	GuildID  uint64 `json:"guildId,string"`
 	Position int    `json:"position"`
 }
 
 // Volume represents a volume packet sent to Lavalink
 type Volume struct {
-	OP      string `json:"op"`
+	Op      string `json:"op"`
 	GuildID uint64 `json:"guildId,string"`
 	Volume  int    `json:"volume"`
 }
 
 // Equalizer represents an equalizer packet sent to Lavalink
 type Equalizer struct {
-	OP      string          `json:"op"`
+	Op      string          `json:"op"`
 	GuildID uint64          `json:"guildId,string"`
 	Bands   []EqualizerBand `json:"bands"`
 }
@@ -107,7 +125,7 @@ type EqualizerBand struct {
 
 // Destroy represents a destroy packet sent to Lavalink
 type Destroy struct {
-	OP      string `json:"op"`
+	Op      string `json:"op"`
 	GuildID uint64 `json:"guildId,string"`
 }
 
