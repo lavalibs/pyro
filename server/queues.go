@@ -11,7 +11,13 @@ import (
 
 // GetSongs gets songs for the given guild
 func (s *Server) GetSongs(ctx *fasthttp.RequestCtx) {
-	tracks, err := s.Queue.List(ctx.UserValue("guildID").(string), 0, -1)
+	guildID, err := strconv.ParseUint(ctx.UserValue("guildID").(string), 10, 64)
+	if err != nil {
+		ctx.Error(err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	tracks, err := s.Queue.List(guildID, 0, 0)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return
@@ -22,71 +28,78 @@ func (s *Server) GetSongs(ctx *fasthttp.RequestCtx) {
 
 // PatchSongs adds songs to the given queue
 func (s *Server) PatchSongs(ctx *fasthttp.RequestCtx) {
-	var tracks map[int]string
-	err := json.Unmarshal(ctx.PostBody(), &tracks)
+	guildID, err := strconv.ParseUint(ctx.UserValue("guildID").(string), 10, 64)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	queue, err := s.Queue.Add(ctx.UserValue("guildID").(string), tracks)
+	var tracks map[int]string
+	err = json.Unmarshal(ctx.PostBody(), &tracks)
+	if err != nil {
+		ctx.Error(err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = s.Queue.Add(guildID, tracks)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = fasthttputil.SendJSON(ctx, queue)
+	ctx.SetStatusCode(http.StatusNoContent)
 }
 
 // PutSongs sets the songs for a given queue
 func (s *Server) PutSongs(ctx *fasthttp.RequestCtx) {
-	var tracks []string
-	err := json.Unmarshal(ctx.PostBody(), &tracks)
+	guildID, err := strconv.ParseUint(ctx.UserValue("guildID").(string), 10, 64)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	queue, err := s.Queue.Set(ctx.UserValue("guildID").(string), tracks)
+	var tracks []string
+	err = json.Unmarshal(ctx.PostBody(), &tracks)
+	if err != nil {
+		ctx.Error(err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = s.Queue.Set(guildID, tracks)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = json.NewEncoder(ctx).Encode(queue)
-	if err != nil {
-		ctx.Error(err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(http.StatusNoContent)
 }
 
 // GetSong gets the given song from the given queue
 func (s *Server) GetSong(ctx *fasthttp.RequestCtx) {
-	var (
-		pos   = ctx.UserValue("songPosition").(string)
-		guild = ctx.UserValue("guildID").(string)
-	)
-
-	posConv, err := strconv.ParseInt(pos, 10, 32)
+	guildID, err := strconv.ParseUint(ctx.UserValue("guildID").(string), 10, 64)
 	if err != nil {
-		ctx.SetStatusCode(http.StatusNotFound)
+		ctx.SetStatusCode(http.StatusBadRequest)
 		return
 	}
 
-	track, err := s.Queue.Get(guild, int(posConv))
+	pos, err := strconv.ParseInt(ctx.UserValue("songPosition").(string), 10, 0)
+	if err != nil {
+		ctx.SetStatusCode(http.StatusBadRequest)
+		return
+	}
+
+	tracks, err := s.Queue.List(guildID, int(pos), 1)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if track == "" {
+	if len(tracks) != 1 || tracks[0] == "" {
 		ctx.SetStatusCode(http.StatusNotFound)
 		return
 	}
 
-	song, err := s.Node.DecodeTrack(track)
+	song, err := s.HTTP.DecodeTrack(tracks[0])
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return

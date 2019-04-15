@@ -2,13 +2,14 @@ package node
 
 import (
 	"github.com/lavalibs/pyro/lavalink"
+	"github.com/lavalibs/pyro/store"
 	"github.com/valyala/fasthttp"
 )
 
 // Node represents a proxy between Lavalink and Redis
 type Node struct {
 	Connection *lavalink.Connection
-	Cache      lavalink.ClusterCache
+	Cache      store.LavalinkCluster
 }
 
 // HandleSend handles a request intended to be sent to the Lavalink websocket; clients are

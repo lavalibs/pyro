@@ -149,7 +149,7 @@ func (c *Connection) ReadJSON(p interface{}) error {
 
 // Store consumes events from Lavalink and stores them in the given cache. Since this reads events
 // from the WebSocket, no other goroutines should attempt to read.
-func (c *Connection) Store(store store.Store) (err error) {
+func (c *Connection) Store(store store.Lavalink) (err error) {
 	d := &types.BasePacket{}
 	b := []byte{}
 	for {

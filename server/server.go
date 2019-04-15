@@ -5,17 +5,18 @@ import (
 	"log"
 
 	"github.com/buaazp/fasthttprouter"
-	"github.com/lavalibs/pyro/cache"
 	"github.com/lavalibs/pyro/lavalink"
+	"github.com/lavalibs/pyro/store"
 	"github.com/valyala/fasthttp"
 )
 
 // Server represents a server to front a single Lavalink node. Multiple servers must be launched to
 // handle multiple nodes.
 type Server struct {
-	Node *lavalink.Node
-	Cache cache.Cache
-	Queue cache.Queue
+	Conn  *lavalink.Connection
+	HTTP  *lavalink.HTTP
+	Cache store.Lavalink
+	Queue store.Queue
 }
 
 // Serve data from this server

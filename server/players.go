@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/lavalibs/pyro/lavalink/types"
 	"github.com/valyala/fasthttp"
 )
 
@@ -17,19 +18,20 @@ type PlayerAction struct {
 
 // GetPlayer gets the player for the given guild
 func (s *Server) GetPlayer(ctx *fasthttp.RequestCtx) {
-	guildID := ctx.UserValue("guildID").(string)
-	node, err := s.Cache.GetPlayerUpdate(guildID)
+	guildID, err := strconv.ParseUint(ctx.UserValue("guildID").(string), 64, 10)
+	player := &types.PlayerState{}
+	err = s.Cache.GetPlayer(guildID, player)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if node == nil {
+	if player == nil {
 		ctx.NotFound()
 		return
 	}
 
-	err = json.NewEncoder(ctx).Encode(node)
+	err = json.NewEncoder(ctx).Encode(player)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 	}
@@ -61,20 +63,20 @@ func (s *Server) PutPlayer(ctx *fasthttp.RequestCtx) {
 	switch data.Action {
 	case "play":
 		if data.Track == "" {
-			data.Track, err = s.Queue.Get(guildStr, 0)
+			data.Track, err = s.Queue.NowPlaying(guild)
 			if err != nil {
 				ctx.Error(err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
 
-		err = s.Node.Play(guild, data.Track, 0, 0)
+		err = s.Conn.Play(guild, data.Track, 0, 0)
 		if err != nil {
 			ctx.Error(err.Error(), http.StatusInternalServerError)
 			return
 		}
 	case "pause":
-		err = s.Node.Pause(guild, data.Paused)
+		err = s.Conn.Pause(guild, data.Paused)
 		if err != nil {
 			ctx.Error(err.Error(), http.StatusInternalServerError)
 			return

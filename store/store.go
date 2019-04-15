@@ -4,18 +4,19 @@ import "github.com/lavalibs/pyro/lavalink/types"
 
 // Lavalink represents the required interface for a complete Lavalink Store
 type Lavalink interface {
-	GetPlayer(guildID uint64) (types.PlayerState, error)
+	GetPlayer(guildID uint64, state *types.PlayerState) error
 	SetPlayer(upd types.PlayerUpdate) error
 	GetVoiceUpdate(guildID uint64) (sessionID string, event types.VoiceServerUpdate, err error)
 	SetVoiceState(pk types.VoiceStateUpdate) error
 	SetVoiceServer(pk types.VoiceServerUpdate) error
-	GetStats(node string) (types.Stats, error)
+	GetStats(node string, stats *types.Stats) error
 	SetStats(node string, stats types.Stats) error
 }
 
 // Queue represents a store of songs
 type Queue interface {
-	Add(guildID uint64, tracks ...string) error
+	Add(guildID uint64, tracks map[int]string) error
+	Set(guildID uint64, tracks []string) error
 	Unshift(guildID uint64, tracks ...string) error
 	Remove(guildID uint64, index int) error
 	Next(guildID uint64, count int) ([]string, error)
@@ -25,7 +26,7 @@ type Queue interface {
 	Splice(guildID uint64, start, deleteCount int, tracks ...string) ([]string, error)
 	Trim(guildID uint64, start, end int) error
 	NowPlaying(guildID uint64) (string, error)
-	List(guildID uint64, index int, count uint) error
+	List(guildID uint64, index int, count uint) ([]string, error)
 }
 
 // LavalinkCluster is the interface a backend storage system must implement to be used as a cluster Store
