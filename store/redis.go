@@ -186,7 +186,7 @@ func (r *Redis) AnnounceDeath(node string) error {
 }
 
 // ConsumeDeaths consumes death notifications, ignoring the specified node
-func (r *Redis) ConsumeDeaths(node string) error {
+func (r *Redis) ConsumeDeaths(node string, deaths chan string) error {
 	err := r.CreateNode(node)
 	if err != nil {
 		return err
@@ -197,24 +197,54 @@ func (r *Redis) ConsumeDeaths(node string) error {
 	defer c.Close()
 	defer pubsub.Close()
 
+	rcv, err := pubsub.Receive()
+	if err != nil {
+		return err
+	}
+
+	switch rcv.(type) {
+	case *redis.Subscription:
+		if deaths != nil {
+			deaths <- ""
+		}
+	case *redis.Message:
+		r.handleDeath(rcv.(*redis.Message).Payload, node)
+	case *redis.Pong:
+	default:
+		return errors.New("unknown redis message received")
+	}
+
 	for msg := range pubsub.Channel() {
-		if msg.Payload == node {
-			continue
+		err = r.handleDeath(msg.Payload, node)
+		if err != nil {
+			return err
 		}
 
-		for {
-			player, err := r.c.SPop(KeyPrefixNodePlayers.Fmt(msg.Payload)).Result()
-			if err != nil {
-				if err == redis.Nil {
-					break
-				}
-				return err
-			}
+		if deaths != nil {
+			deaths <- msg.Payload
+		}
+	}
 
-			err = r.c.SAdd(KeyPrefixNodePlayers.Fmt(node), player).Err()
-			if err != nil {
-				return err
+	return nil
+}
+
+func (r *Redis) handleDeath(from, to string) error {
+	if from == to {
+		return nil
+	}
+
+	for {
+		player, err := r.c.SPop(KeyPrefixNodePlayers.Fmt(from)).Result()
+		if err != nil {
+			if err == redis.Nil {
+				break
 			}
+			return err
+		}
+
+		err = r.c.SAdd(KeyPrefixNodePlayers.Fmt(to), player).Err()
+		if err != nil {
+			return err
 		}
 	}
 

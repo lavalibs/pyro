@@ -157,8 +157,9 @@ func TestReleasePlayer(t *testing.T) {
 
 func TestDeathAnnouncement(t *testing.T) {
 	r := makeClient(t)
+	deaths := make(chan string)
 	go func() {
-		err := r.ConsumeDeaths("other node")
+		err := r.ConsumeDeaths("other node", deaths)
 		assert.NoError(t, err)
 	}()
 
@@ -166,8 +167,12 @@ func TestDeathAnnouncement(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
+	<-deaths
 	err = r.AnnounceDeath("node")
 	assert.NoError(t, err)
+
+	dead := <-deaths
+	assert.Equal(t, "node", dead, "unexpected node death notification")
 
 	node, err := r.PlayerNode(1)
 	assert.NoError(t, err)
