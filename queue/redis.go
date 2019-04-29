@@ -1,20 +1,35 @@
-package store
+package queue
 
 import (
 	"sort"
 	"time"
+
+	"github.com/go-redis/redis"
+	"github.com/lavalibs/pyro/store"
+)
+
+//go:generate esc -o scripts.go -pkg queue -private redis_scripts
+
+var (
+	// LPut puts an element into the list at the specified index
+	LPut = redis.NewScript(_escFSMustString(false, "/redis_scripts/lput.lua"))
+
+	// LOverride resets the elements in a list
+	LOverride = redis.NewScript(_escFSMustString(false, "/redis_scripts/loverride.lua"))
+
+	// MultiRPopLPush moves multiple elements from the right of one list to the left of another
+	MultiRPopLPush = redis.NewScript(_escFSMustString(false, "/redis_scripts/multirpoplpush.lua"))
 )
 
 // RedisQueue represents a song queue in redis
 type RedisQueue struct {
-	r *Redis
+	c *redis.Client
 }
 
 // Add adds songs to the end queue
 func (q *RedisQueue) Add(guildID uint64, tracks map[int]string) error {
-	script := _escFSMustString(false, "lput.lua")
-	return q.r.Eval(script, []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+	return LPut.Run(q.c, []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, tracks).Err()
 }
 
@@ -25,8 +40,8 @@ func (q *RedisQueue) Set(guildID uint64, tracks []string) error {
 		intr[i] = track
 	}
 
-	return q.r.Eval(_escFSMustString(false, "loverride.lua"), []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+	return LOverride.Run(q.c, []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, intr...).Err()
 }
 
@@ -36,28 +51,23 @@ func (q *RedisQueue) Unshift(guildID uint64, tracks ...string) error {
 	for i, t := range tracks {
 		intr[i] = t
 	}
-	return q.r.RPush(KeyPrefixPlayerQueue.Fmt(guildID), intr...).Err()
+	return q.c.RPush(store.KeyPrefixPlayerQueue.Fmt(guildID), intr...).Err()
 }
 
 // Remove removes a song from the queue at the index
 func (q *RedisQueue) Remove(guildID uint64, index int) error {
 	// TODO: Redis will remove the first occurrance of the element, not the specific index
-	return q.r.Eval(`local index = redis.call('lindex', KEYS[1], ARGV[1])
+	return q.c.Eval(`local index = redis.call('lindex', KEYS[1], ARGV[1])
 redis.call('lrem', KEYS[1], index)`, []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, index).Err()
 }
 
 // Next advances the playlist
 func (q *RedisQueue) Next(guildID uint64, count int) (skipped []string, err error) {
-	script, err := _escFSString(false, "multirpoplpush.lua")
-	if err != nil {
-		return
-	}
-
-	res, err := q.r.Eval(script, []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
-		KeyPrefixPlayerPrevious.Fmt(guildID),
+	res, err := MultiRPopLPush.Run(q.c, []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
+		store.KeyPrefixPlayerPrevious.Fmt(guildID),
 	}, count).Result()
 	skipped = res.([]string)
 	return
@@ -65,7 +75,7 @@ func (q *RedisQueue) Next(guildID uint64, count int) (skipped []string, err erro
 
 // Sort sorts the list
 func (q *RedisQueue) Sort(guildID uint64, predicate func(a, b string) bool) (list []string, err error) {
-	list, err = q.r.LRange(KeyPrefixPlayerQueue.Fmt(guildID), 0, -1).Result()
+	list, err = q.c.LRange(store.KeyPrefixPlayerQueue.Fmt(guildID), 0, -1).Result()
 	if err != nil {
 		return
 	}
@@ -79,23 +89,23 @@ func (q *RedisQueue) Sort(guildID uint64, predicate func(a, b string) bool) (lis
 		intr[i] = item
 	}
 
-	err = q.r.Eval(_escFSMustString(false, "loverride.lua"), []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+	err = q.c.Eval(_escFSMustString(false, "loverride.lua"), []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, intr...).Err()
 	return
 }
 
 // Move moves songs in the list by index
 func (q *RedisQueue) Move(guildID uint64, from, to int) error {
-	return q.r.Eval(_escFSMustString(false, "lmove.lua"), []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+	return q.c.Eval(_escFSMustString(false, "lmove.lua"), []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, from, to).Err()
 }
 
 // Shuffle shuffles the queue
 func (q *RedisQueue) Shuffle(guildID uint64) ([]string, error) {
-	list, err := q.r.Eval(_escFSMustString(false, "lshuffle.lua"), []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+	list, err := q.c.Eval(_escFSMustString(false, "lshuffle.lua"), []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, time.Now()).Result()
 	if err != nil {
 		return []string{}, err
@@ -113,8 +123,8 @@ func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...st
 		args[i+2] = track
 	}
 
-	list, err := q.r.Eval(_escFSMustString(false, "lrevsplice.lua"), []string{
-		KeyPrefixPlayerQueue.Fmt(guildID),
+	list, err := q.c.Eval(_escFSMustString(false, "lrevsplice.lua"), []string{
+		store.KeyPrefixPlayerQueue.Fmt(guildID),
 	}, args...).Result()
 	if err != nil {
 		return []string{}, err
@@ -125,12 +135,12 @@ func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...st
 
 // Trim trims the queue
 func (q *RedisQueue) Trim(guildID uint64, start, end int) error {
-	return q.r.LTrim(KeyPrefixPlayerQueue.Fmt(guildID), int64(start), int64(end)).Err()
+	return q.c.LTrim(store.KeyPrefixPlayerQueue.Fmt(guildID), int64(start), int64(end)).Err()
 }
 
 // NowPlaying gets the currently playing track
 func (q *RedisQueue) NowPlaying(guildID uint64) (string, error) {
-	return q.r.LIndex(KeyPrefixPlayerPrevious.Fmt(guildID), 0).Result()
+	return q.c.LIndex(store.KeyPrefixPlayerPrevious.Fmt(guildID), 0).Result()
 }
 
 // List lists the songs in the queue
@@ -142,5 +152,5 @@ func (q *RedisQueue) List(guildID uint64, index int, count uint) ([]string, erro
 		last = int64(uint(index) + count)
 	}
 
-	return q.r.LRange(KeyPrefixPlayerQueue.Fmt(guildID), int64(index), last).Result()
+	return q.c.LRange(store.KeyPrefixPlayerQueue.Fmt(guildID), int64(index), last).Result()
 }

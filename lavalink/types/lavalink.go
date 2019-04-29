@@ -131,25 +131,31 @@ type Destroy struct {
 
 // Stats represents node stats received from Lavalink
 type Stats struct {
-	Players        int `json:"players"`
-	PlayingPlayers int `json:"playingPlayers"`
-	Uptime         int `json:"uptime"`
-	Memory         struct {
-		Free       int `json:"free"`
-		Used       int `json:"used"`
-		Allocated  int `json:"allocated"`
-		Reservable int `json:"reservable"`
-	} `json:"memory"`
-	CPU struct {
-		Cores        int     `json:"cores"`
-		SystemLoad   float64 `json:"systemLoad"`
-		LavalinkLoad float64 `json:"lavalinkLoad"`
-	} `json:"cpu"`
-	FrameStats struct {
-		Sent    int `json:"sent"`
-		Nulled  int `json:"nulled"`
-		Deficit int `json:"deficit"`
-	} `json:"frameStats"`
+	Players        int         `json:"players"`
+	PlayingPlayers int         `json:"playingPlayers"`
+	Uptime         int         `json:"uptime"`
+	Memory         StatsMemory `json:"memory"`
+	CPU            StatsCPU    `json:"cpu"`
+	FrameStats     StatsFrames `json:"frameStats"`
+}
+
+type StatsMemory struct {
+	Free       int `json:"free"`
+	Used       int `json:"used"`
+	Allocated  int `json:"allocated"`
+	Reservable int `json:"reservable"`
+}
+
+type StatsCPU struct {
+	Cores        int     `json:"cores"`
+	SystemLoad   float64 `json:"systemLoad"`
+	LavalinkLoad float64 `json:"lavalinkLoad"`
+}
+
+type StatsFrames struct {
+	Sent    int `json:"sent"`
+	Nulled  int `json:"nulled"`
+	Deficit int `json:"deficit"`
 }
 
 // PlayerUpdate represents a player update received from Lavalink

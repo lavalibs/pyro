@@ -28,7 +28,6 @@ const (
 	KeyPrefixVoiceServer               // k=guild, v=JSON voice server
 	KeyPrefixNodeStats                 // k=node, v=JSON stats
 	KeyPrefixNodePlayers               // k=node, v[set]=guild
-	KeyPrefixPlayerNode                // k=guild, v=node
 	KeyPrefixNodePackets               // k=node, v[pubsub]=JSON Lavalink ws packet
 	KeyPrefixPlayerQueue               // k=guild, v[list]=track identifier
 	KeyPrefixPlayerPrevious            // k=guild, v[list]=track identifier

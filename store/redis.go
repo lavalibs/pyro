@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/go-redis/redis"
 	"github.com/lavalibs/pyro/lavalink/types"
@@ -9,24 +10,39 @@ import (
 
 //go:generate esc -o scripts.go -pkg store -private redis_scripts
 
+// ErrUnackedDeath occurs when a node death is announced but not acknowledged by Redis
+var ErrUnackedDeath = errors.New("unacknowledged node death")
+
+var (
+	// ClaimPlayer claims the player in redis
+	ClaimPlayer = redis.NewScript(_escFSMustString(false, "/redis_scripts/claimplayer.lua"))
+
+	// PlayerNode gets the player of the node
+	PlayerNode = redis.NewScript(_escFSMustString(false, "/redis_scripts/playernode.lua"))
+)
+
 // Redis represents a clustering client. Used 1:1 with Lavalink nodes.
 type Redis struct {
-	*redis.Client
+	c    *redis.Client
+	opts *redis.Options
 }
 
 // NewRedis makes a new cluster client
-func NewRedis(r *redis.Client) *Redis {
-	return &Redis{r}
+func NewRedis(opts *redis.Options) *Redis {
+	return &Redis{redis.NewClient(opts), opts}
 }
 
 // GetPlayer gets the cached player state for the given guild
-func (r *Redis) GetPlayer(guildID uint64) (st types.PlayerState, err error) {
-	state, err := r.Get(KeyPrefixPlayerState.Fmt(guildID)).Bytes()
-	if err != nil || len(state) == 0 {
+func (r *Redis) GetPlayer(guildID uint64, state *types.PlayerState) (err error) {
+	res, err := r.c.Get(KeyPrefixPlayerState.Fmt(guildID)).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			err = nil
+		}
 		return
 	}
 
-	err = json.Unmarshal(state, &st)
+	err = json.Unmarshal(res, &state)
 	return
 }
 
@@ -37,19 +53,24 @@ func (r *Redis) SetPlayer(upd types.PlayerUpdate) error {
 		return err
 	}
 
-	err = r.Set(KeyPrefixPlayerState.Fmt(upd.GuildID), b, 0).Err()
-	return err
+	return r.c.Set(KeyPrefixPlayerState.Fmt(upd.GuildID), b, 0).Err()
 }
 
 // GetVoiceUpdate gets voice update info.
 func (r *Redis) GetVoiceUpdate(guildID uint64) (session string, server types.VoiceServerUpdate, err error) {
-	session, err = r.Get(KeyPrefixVoiceSession.Fmt(guildID)).Result()
+	session, err = r.c.Get(KeyPrefixVoiceSession.Fmt(guildID)).Result()
 	if err != nil {
+		if err == redis.Nil {
+			err = nil
+		}
 		return
 	}
 
-	serverBytes, err := r.Get(KeyPrefixVoiceServer.Fmt(guildID)).Bytes()
+	serverBytes, err := r.c.Get(KeyPrefixVoiceServer.Fmt(guildID)).Bytes()
 	if err != nil {
+		if err == redis.Nil {
+			err = nil
+		}
 		return
 	}
 
@@ -57,9 +78,9 @@ func (r *Redis) GetVoiceUpdate(guildID uint64) (session string, server types.Voi
 	return
 }
 
-// SetVoiceState sets the voice state update in Redis
-func (r *Redis) SetVoiceState(pk types.VoiceStateUpdate) error {
-	return r.Set(KeyPrefixVoiceSession.Fmt(pk.GuildID), pk.SessionID, 0).Err()
+// SetVoiceSession sets the voice session in Redis
+func (r *Redis) SetVoiceSession(guildID uint64, sessionID string) error {
+	return r.c.Set(KeyPrefixVoiceSession.Fmt(guildID), sessionID, 0).Err()
 }
 
 // SetVoiceServer sets the voice server information in Redis
@@ -69,24 +90,24 @@ func (r *Redis) SetVoiceServer(pk types.VoiceServerUpdate) error {
 		return err
 	}
 
-	return r.Set(KeyPrefixVoiceServer.Fmt(pk.GuildID), b, 0).Err()
+	return r.c.Set(KeyPrefixVoiceServer.Fmt(pk.GuildID), b, 0).Err()
 }
 
 // GetStats gets the stats for a node
-func (r *Redis) GetStats(node string) (stats types.Stats, err error) {
-	b, err := r.Get(KeyPrefixNodeStats.Fmt(node)).Bytes()
+func (r *Redis) GetStats(node string, stats *types.Stats) (err error) {
+	b, err := r.c.Get(KeyPrefixNodeStats.Fmt(node)).Bytes()
 	if err != nil {
 		return
 	}
 
-	err = json.Unmarshal(b, &stats)
+	err = json.Unmarshal(b, stats)
 	return
 }
 
 // SetStats sets the stats for a node. It also updates a set of node names sorted by system CPU
 // load.
 func (r *Redis) SetStats(node string, stats types.Stats) error {
-	err := r.ZAdd(string(KeyStatsList), redis.Z{
+	err := r.c.ZAdd(string(KeyStatsList), redis.Z{
 		Member: node,
 		Score:  stats.CPU.SystemLoad / float64(stats.CPU.Cores),
 	}).Err()
@@ -99,47 +120,82 @@ func (r *Redis) SetStats(node string, stats types.Stats) error {
 		return err
 	}
 
-	return r.Set(KeyPrefixNodeStats.Fmt(node), b, 0).Err()
+	return r.c.Set(KeyPrefixNodeStats.Fmt(node), b, 0).Err()
 }
 
 // CreateNode creates a node
 func (r *Redis) CreateNode(name string) error {
-	return r.SAdd(string(KeyNodes), name).Err()
+	return r.c.SAdd(string(KeyNodes), name).Err()
 }
 
 // DeleteNode deletes a node
 func (r *Redis) DeleteNode(name string) error {
-	return r.SRem(string(KeyNodes), name).Err()
+	return r.c.SRem(string(KeyNodes), name).Err()
 }
 
 // ClaimPlayer claims a player for the node
 func (r *Redis) ClaimPlayer(node string, guildID uint64) (bool, error) {
-	nodes, err := r.SMembers(string(KeyNodes)).Result()
+	err := r.CreateNode(node)
 	if err != nil {
 		return false, err
 	}
 
-	return r.Eval(`for local i = 1, #KEYS-1 do
-	local has = redis.call("sismember", KEYS[i], ARGV[1])
-	if has then return KEYS[i] == KEYS[#KEYS] end
-end
-redis.call("sadd", KEYS[#KEYS], ARGV[1])
-return true`, append(nodes, node), guildID).Bool()
+	nodes, err := r.c.SMembers(string(KeyNodes)).Result()
+	if err != nil {
+		return false, err
+	}
+
+	nodeKeys := make([]string, len(nodes))
+	for i, n := range nodes {
+		nodeKeys[i] = KeyPrefixNodePlayers.Fmt(n)
+	}
+
+	return ClaimPlayer.Run(r.c, append(nodeKeys, KeyPrefixNodePlayers.Fmt(node)), guildID).Bool()
+}
+
+// PlayerNode gets the node that the player is running on
+func (r *Redis) PlayerNode(guildID uint64) (string, error) {
+	nodes, err := r.c.SMembers(string(KeyNodes)).Result()
+	if err != nil {
+		return "", err
+	}
+
+	args := make([]interface{}, len(nodes))
+	nodeKeys := make([]string, len(nodes))
+	for i, node := range nodes {
+		nodeKeys[i] = KeyPrefixNodePlayers.Fmt(node)
+		args[i] = node
+	}
+
+	node, err := PlayerNode.Run(r.c, nodeKeys, append(args, guildID)...).String()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return node, err
 }
 
 // ReleasePlayer releases a player from a node
-func (r *Redis) ReleasePlayer(node string, guildID uint64) error {
-	return r.SRem(node, guildID).Err()
+func (r *Redis) ReleasePlayer(node string, guildID uint64) (bool, error) {
+	count, err := r.c.SRem(KeyPrefixNodePlayers.Fmt(node), guildID).Result()
+	return count > 0, err
 }
 
 // AnnounceDeath destroys a node
 func (r *Redis) AnnounceDeath(node string) error {
-	return r.Publish(string(KeyNodeDeaths), node).Err()
+	return r.c.Publish(string(KeyNodeDeaths), node).Err()
 }
 
 // ConsumeDeaths consumes death notifications, ignoring the specified node
-func (r *Redis) ConsumeDeaths(node string) error {
-	pubsub := r.Subscribe(string(KeyNodeDeaths))
+func (r *Redis) ConsumeDeaths(node string, ready chan struct{}) error {
+	err := r.CreateNode(node)
+	if err != nil {
+		return err
+	}
+
+	c := redis.NewClient(r.opts)
+	pubsub := c.Subscribe(string(KeyNodeDeaths))
+	ready <- struct{}{}
+	defer c.Close()
 	defer pubsub.Close()
 
 	for msg := range pubsub.Channel() {
@@ -148,19 +204,15 @@ func (r *Redis) ConsumeDeaths(node string) error {
 		}
 
 		for {
-			player, err := r.SPop(KeyPrefixNodePlayers.Fmt(msg.Payload)).Result()
+			player, err := r.c.SPop(KeyPrefixNodePlayers.Fmt(msg.Payload)).Result()
 			if err != nil {
+				if err == redis.Nil {
+					break
+				}
 				return err
 			}
-			if player == "" {
-				break
-			}
 
-			err = r.Eval(`redis.call('sadd', KEYS[1], ARGV[1])
-redis.call('set', KEYS[2], ARGV[2])`, []string{
-				KeyPrefixNodePlayers.Fmt(node),
-				KeyPrefixPlayerNode.Fmt(player),
-			}, player, node).Err()
+			err = r.c.SAdd(KeyPrefixNodePlayers.Fmt(node), player).Err()
 			if err != nil {
 				return err
 			}
