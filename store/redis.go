@@ -10,8 +10,9 @@ import (
 
 //go:generate esc -o scripts.go -pkg store -private redis_scripts
 
-// ErrUnackedDeath occurs when a node death is announced but not acknowledged by Redis
-var ErrUnackedDeath = errors.New("unacknowledged node death")
+// ErrUnknownRedisResponse occurs when the library is expecting a redis response and receives one
+// of incorrect type
+var ErrUnknownRedisResponse = errors.New("unknown redis response")
 
 var (
 	// ClaimPlayer claims the player in redis
@@ -211,7 +212,7 @@ func (r *Redis) ConsumeDeaths(node string, deaths chan string) error {
 		r.handleDeath(rcv.(*redis.Message).Payload, node)
 	case *redis.Pong:
 	default:
-		return errors.New("unknown redis message received")
+		return ErrUnknownRedisResponse
 	}
 
 	for msg := range pubsub.Channel() {
