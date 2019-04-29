@@ -209,27 +209,26 @@ func (r *Redis) ConsumeDeaths(node string, deaths chan string) error {
 			deaths <- ""
 		}
 	case *redis.Message:
-		r.handleDeath(rcv.(*redis.Message).Payload, node)
+		err = r.handleDeath(deaths, rcv.(*redis.Message).Payload, node)
+		if err != nil {
+			return err
+		}
 	case *redis.Pong:
 	default:
 		return ErrUnknownRedisResponse
 	}
 
 	for msg := range pubsub.Channel() {
-		err = r.handleDeath(msg.Payload, node)
+		err = r.handleDeath(deaths, msg.Payload, node)
 		if err != nil {
 			return err
-		}
-
-		if deaths != nil {
-			deaths <- msg.Payload
 		}
 	}
 
 	return nil
 }
 
-func (r *Redis) handleDeath(from, to string) error {
+func (r *Redis) handleDeath(deaths chan string, from, to string) error {
 	if from == to {
 		return nil
 	}
