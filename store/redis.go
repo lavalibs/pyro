@@ -186,7 +186,7 @@ func (r *Redis) AnnounceDeath(node string) error {
 }
 
 // ConsumeDeaths consumes death notifications, ignoring the specified node
-func (r *Redis) ConsumeDeaths(node string, ready chan struct{}) error {
+func (r *Redis) ConsumeDeaths(node string) error {
 	err := r.CreateNode(node)
 	if err != nil {
 		return err
@@ -194,7 +194,6 @@ func (r *Redis) ConsumeDeaths(node string, ready chan struct{}) error {
 
 	c := redis.NewClient(r.opts)
 	pubsub := c.Subscribe(string(KeyNodeDeaths))
-	ready <- struct{}{}
 	defer c.Close()
 	defer pubsub.Close()
 

@@ -157,12 +157,10 @@ func TestReleasePlayer(t *testing.T) {
 
 func TestDeathAnnouncement(t *testing.T) {
 	r := makeClient(t)
-	ready := make(chan struct{})
 	go func() {
-		err := r.ConsumeDeaths("other node", ready)
+		err := r.ConsumeDeaths("other node")
 		assert.NoError(t, err)
 	}()
-	<-ready
 
 	ok, err := r.ClaimPlayer("node", 1)
 	assert.NoError(t, err)
