@@ -1,7 +1,6 @@
 package queue
 
 import (
-	"encoding/json"
 	"sort"
 	"time"
 
@@ -65,15 +64,13 @@ type RedisQueue struct {
 }
 
 // Add adds songs to the end queue
-func (q *RedisQueue) Add(guildID uint64, tracks map[int]string) error {
-	b, err := json.Marshal(tracks)
-	if err != nil {
-		return err
+func (q *RedisQueue) Add(guildID uint64, tracks []string) error {
+	intr := make([]interface{}, len(tracks))
+	for i, track := range tracks {
+		intr[i] = track
 	}
 
-	return LPut.Run(q.c, []string{
-		keys.PrefixPlayerQueue.Fmt(guildID),
-	}, b).Err()
+	return q.c.LPush(keys.PrefixPlayerQueue.Fmt(guildID), intr...).Err()
 }
 
 // Set overwrites songs in the queue
@@ -185,13 +182,24 @@ func (q *RedisQueue) NowPlaying(guildID uint64) (string, error) {
 }
 
 // List lists the songs in the queue
-func (q *RedisQueue) List(guildID uint64, index int, count uint) ([]string, error) {
+func (q *RedisQueue) List(guildID uint64, index int, count uint) (tracks []string, err error) {
 	var last int64
 	if index < 0 {
 		last = -int64(uint(-index) + count)
+	} else if count == 0 {
+		last = -1
 	} else {
 		last = int64(uint(index) + count)
 	}
 
-	return q.c.LRange(keys.PrefixPlayerQueue.Fmt(guildID), int64(index), last).Result()
+	tracks, err = q.c.LRange(keys.PrefixPlayerQueue.Fmt(guildID), int64(index), last).Result()
+	if err != nil {
+		return
+	}
+
+	l := len(tracks)
+	for i := 0; i < l/2; i++ {
+		tracks[i], tracks[l-i-1] = tracks[l-i-1], tracks[i]
+	}
+	return
 }

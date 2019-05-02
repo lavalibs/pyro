@@ -15,6 +15,7 @@ func init() {
 		Password: "",
 		DB:       0,
 	})
+	c.FlushDb()
 	q = &RedisQueue{c}
 }
 
@@ -23,11 +24,21 @@ func TestInterface(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	tracks := map[int]string{
-		0: "a",
-		1: "b",
-		2: "c",
-	}
+	tracks := []string{"a", "b", "c"}
 	err := q.Add(1, tracks)
 	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, tracks, list)
+}
+
+func TestSet(t *testing.T) {
+	tracks := []string{"d", "e", "f"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, tracks, list)
 }

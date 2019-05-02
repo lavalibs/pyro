@@ -2,8 +2,9 @@ package queue
 
 // Queue represents a store of songs
 type Queue interface {
-	Add(guildID uint64, tracks map[int]string) error
+	Add(guildID uint64, tracks []string) error
 	Set(guildID uint64, tracks []string) error
+	Put(guildID uint64, tracks map[int]string) error
 	Unshift(guildID uint64, tracks ...string) error
 	Remove(guildID uint64, index int) error
 	Next(guildID uint64, count int) ([]string, error)
