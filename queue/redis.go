@@ -16,7 +16,7 @@ var (
 	// Keys:
 	// - list to put the elements into
 	// Values:
-	// - ...map[int]string where K is position and V is the value to insert
+	// - ...json.Marshalled map[int]string where K is position and V is the value to insert
 	LPut = redis.NewScript(_escFSMustString(false, "/redis_scripts/lput.lua"))
 
 	// LOverride resets the elements in a list
