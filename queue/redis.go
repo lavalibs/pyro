@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -65,9 +66,14 @@ type RedisQueue struct {
 
 // Add adds songs to the end queue
 func (q *RedisQueue) Add(guildID uint64, tracks map[int]string) error {
+	b, err := json.Marshal(tracks)
+	if err != nil {
+		return err
+	}
+
 	return LPut.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
-	}, tracks).Err()
+	}, b).Err()
 }
 
 // Set overwrites songs in the queue
