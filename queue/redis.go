@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -83,6 +84,18 @@ func (q *RedisQueue) Set(guildID uint64, tracks []string) error {
 	return LOverride.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
 	}, intr...).Err()
+}
+
+// Put puts the specified elements into the queue at the specified positions
+func (q *RedisQueue) Put(guildID uint64, tracks map[int]string) error {
+	b, err := json.Marshal(tracks)
+	if err != nil {
+		return err
+	}
+
+	return LPut.Run(q.c, []string{
+		keys.PrefixPlayerQueue.Fmt(guildID),
+	}, b).Err()
 }
 
 // Unshift adds songs to the front of the queue

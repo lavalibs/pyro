@@ -23,7 +23,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ]]
-
 local function reverse(arr)
   if arr == nil then return arr end
 
@@ -38,10 +37,11 @@ local function reverse(arr)
 end
 
 local list = redis.call('lrange', KEYS[1], 0, -1)
+reverse(list)
 for k, v in pairs(cjson.decode(ARGV[1])) do
 	local pos = tonumber(k)
 	if pos == nil then return redis.error_reply('positions must be numbers') end
 	table.insert(list, pos+1, v)
 end
 redis.call('del', KEYS[1])
-return redis.call('lpush', KEYS[1], unpack(reverse(list)))
+return redis.call('lpush', KEYS[1], unpack(list))

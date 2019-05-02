@@ -31,14 +31,31 @@ func TestAdd(t *testing.T) {
 	list, err := q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, tracks, list)
+	q.c.FlushDB()
 }
 
 func TestSet(t *testing.T) {
-	tracks := []string{"d", "e", "f"}
+	tracks := []string{"a", "b", "c"}
 	err := q.Set(1, tracks)
 	assert.NoError(t, err)
 
 	list, err := q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, tracks, list)
+	q.c.FlushDB()
+}
+
+func TestPut(t *testing.T) {
+	tracks := []string{"a", "c", "d", "e", "f"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	err = q.Put(1, map[int]string{
+		1: "b",
+	})
+	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, list)
 }
