@@ -11,13 +11,50 @@ import (
 //go:generate esc -o scripts.go -pkg queue -private redis_scripts
 
 var (
-	// LPut puts an element into the list at the specified index
+	// LPut puts elements into the list at the specified index
+	// Keys:
+	// - list to put the elements into
+	// Values:
+	// - ...map[int]string where K is position and V is the value to insert
 	LPut = redis.NewScript(_escFSMustString(false, "/redis_scripts/lput.lua"))
 
 	// LOverride resets the elements in a list
+	// Keys:
+	// - list to override
+	// Values:
+	// - ...values to insert
 	LOverride = redis.NewScript(_escFSMustString(false, "/redis_scripts/loverride.lua"))
 
+	// LMove moves an element in a list
+	// Keys:
+	// - the list to move the elements in
+	// Values:
+	// - (int) from index
+	// - (int) to index
+	LMove = redis.NewScript(_escFSMustString(false, "/redis_scripts/lmove.lua"))
+
+	// LShuffle shuffles a list
+	// Keys:
+	// - the list to shuffle
+	// Values:
+	// - randomization seed
+	LShuffle = redis.NewScript(_escFSMustString(false, "/redis_scripts/lshuffle.lua"))
+
+	// LRevSplice splices a list in reverse
+	// Keys:
+	// - the list to splice
+	// Values:
+	// - (int) start: the index to start splicing at
+	// - (int) deleteCount: the number of elements to remove
+	// - ...elements to insert
+	LRevSplice = redis.NewScript(_escFSMustString(false, "/redis_scripts/lrevsplice.lua"))
+
 	// MultiRPopLPush moves multiple elements from the right of one list to the left of another
+	// Keys:
+	// - RPop list
+	// - LPush list
+	// Values:
+	// - (int) count: number of elements to move
 	MultiRPopLPush = redis.NewScript(_escFSMustString(false, "/redis_scripts/multirpoplpush.lua"))
 )
 
@@ -56,11 +93,9 @@ func (q *RedisQueue) Unshift(guildID uint64, tracks ...string) error {
 
 // Remove removes a song from the queue at the index
 func (q *RedisQueue) Remove(guildID uint64, index int) error {
-	// TODO: Redis will remove the first occurrance of the element, not the specific index
-	return q.c.Eval(`local index = redis.call('lindex', KEYS[1], ARGV[1])
-redis.call('lrem', KEYS[1], index)`, []string{
+	return LRevSplice.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
-	}, index).Err()
+	}, index, 1).Err()
 }
 
 // Next advances the playlist
@@ -89,7 +124,7 @@ func (q *RedisQueue) Sort(guildID uint64, predicate func(a, b string) bool) (lis
 		intr[i] = item
 	}
 
-	err = q.c.Eval(_escFSMustString(false, "loverride.lua"), []string{
+	err = LOverride.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
 	}, intr...).Err()
 	return
@@ -97,14 +132,14 @@ func (q *RedisQueue) Sort(guildID uint64, predicate func(a, b string) bool) (lis
 
 // Move moves songs in the list by index
 func (q *RedisQueue) Move(guildID uint64, from, to int) error {
-	return q.c.Eval(_escFSMustString(false, "lmove.lua"), []string{
+	return LMove.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
 	}, from, to).Err()
 }
 
 // Shuffle shuffles the queue
 func (q *RedisQueue) Shuffle(guildID uint64) ([]string, error) {
-	list, err := q.c.Eval(_escFSMustString(false, "lshuffle.lua"), []string{
+	list, err := LShuffle.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
 	}, time.Now()).Result()
 	if err != nil {
@@ -123,7 +158,7 @@ func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...st
 		args[i+2] = track
 	}
 
-	list, err := q.c.Eval(_escFSMustString(false, "lrevsplice.lua"), []string{
+	list, err := LRevSplice.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
 	}, args...).Result()
 	if err != nil {
