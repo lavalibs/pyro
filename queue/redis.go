@@ -178,7 +178,7 @@ func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...st
 
 // Trim trims the queue
 func (q *RedisQueue) Trim(guildID uint64, start, end int) error {
-	return q.c.LTrim(keys.PrefixPlayerQueue.Fmt(guildID), int64(start), int64(end)).Err()
+	return q.c.LTrim(keys.PrefixPlayerQueue.Fmt(guildID), -int64(end)-1, -int64(start)-1).Err()
 }
 
 // NowPlaying gets the currently playing track

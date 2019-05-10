@@ -143,3 +143,16 @@ func TestSplice(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a", "x", "y", "z", "d"}, list)
 }
+
+func TestTrim(t *testing.T) {
+	tracks := []string{"a", "b", "c", "d"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	err = q.Trim(1, 0, 2)
+	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b", "c"}, list)
+}
