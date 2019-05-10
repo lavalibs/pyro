@@ -69,4 +69,26 @@ func TestUnshift(t *testing.T) {
 	list, err := q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, tracks, list)
+
+	newTracks := []string{"d", "e", "f", "g"}
+	err = q.Unshift(1, newTracks...)
+	assert.NoError(t, err)
+
+	expected := append(newTracks, tracks...)
+	list, err = q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, list)
+}
+
+func TestRemove(t *testing.T) {
+	tracks := []string{"a", "b", "c", "d", "e"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	err = q.Remove(1, 1)
+	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "c", "d", "e"}, list)
 }
