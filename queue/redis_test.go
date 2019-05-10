@@ -58,4 +58,15 @@ func TestPut(t *testing.T) {
 	list, err := q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, list)
+	q.c.FlushDB()
+}
+
+func TestUnshift(t *testing.T) {
+	tracks := []string{"a", "b", "c"}
+	err := q.Unshift(1, tracks...)
+	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, tracks, list)
 }

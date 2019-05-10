@@ -100,9 +100,10 @@ func (q *RedisQueue) Put(guildID uint64, tracks map[int]string) error {
 
 // Unshift adds songs to the front of the queue
 func (q *RedisQueue) Unshift(guildID uint64, tracks ...string) error {
-	intr := make([]interface{}, len(tracks))
+	l := len(tracks)
+	intr := make([]interface{}, l)
 	for i, t := range tracks {
-		intr[i] = t
+		intr[l-i-1] = t
 	}
 	return q.c.RPush(keys.PrefixPlayerQueue.Fmt(guildID), intr...).Err()
 }
