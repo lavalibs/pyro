@@ -2,7 +2,6 @@ package queue
 
 import (
 	"encoding/json"
-	"sort"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -121,29 +120,11 @@ func (q *RedisQueue) Next(guildID uint64, count int) (skipped []string, err erro
 		keys.PrefixPlayerQueue.Fmt(guildID),
 		keys.PrefixPlayerPrevious.Fmt(guildID),
 	}, count).Result()
-	skipped = res.([]string)
-	return
-}
-
-// Sort sorts the list
-func (q *RedisQueue) Sort(guildID uint64, predicate func(a, b string) bool) (list []string, err error) {
-	list, err = q.c.LRange(keys.PrefixPlayerQueue.Fmt(guildID), 0, -1).Result()
-	if err != nil {
-		return
+	intr := res.([]interface{})
+	skipped = make([]string, len(intr))
+	for i, t := range intr {
+		skipped[i] = t.(string)
 	}
-
-	sort.Slice(list, func(i, j int) bool {
-		return predicate(list[i], list[j])
-	})
-
-	intr := make([]interface{}, len(list))
-	for i, item := range list {
-		intr[i] = item
-	}
-
-	err = LOverride.Run(q.c, []string{
-		keys.PrefixPlayerQueue.Fmt(guildID),
-	}, intr...).Err()
 	return
 }
 

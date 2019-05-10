@@ -8,7 +8,6 @@ type Queue interface {
 	Unshift(guildID uint64, tracks ...string) error
 	Remove(guildID uint64, index int) error
 	Next(guildID uint64, count int) ([]string, error)
-	Sort(uint64, func(a, b string) bool) ([]string, error)
 	Move(guildID uint64, from, to int) error
 	Shuffle(guildID uint64) ([]string, error)
 	Splice(guildID uint64, start, deleteCount int, tracks ...string) ([]string, error)

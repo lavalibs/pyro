@@ -78,6 +78,7 @@ func TestUnshift(t *testing.T) {
 	list, err = q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, list)
+	q.c.FlushDB()
 }
 
 func TestRemove(t *testing.T) {
@@ -91,4 +92,19 @@ func TestRemove(t *testing.T) {
 	list, err := q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a", "c", "d", "e"}, list)
+	q.c.FlushDB()
+}
+
+func TestNext(t *testing.T) {
+	tracks := []string{"a", "b", "c", "d", "e"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	skipped, err := q.Next(1, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, skipped)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"c", "d", "e"}, list)
 }
