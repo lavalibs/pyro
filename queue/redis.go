@@ -136,15 +136,20 @@ func (q *RedisQueue) Move(guildID uint64, from, to int) error {
 }
 
 // Shuffle shuffles the queue
-func (q *RedisQueue) Shuffle(guildID uint64) ([]string, error) {
-	list, err := LShuffle.Run(q.c, []string{
+func (q *RedisQueue) Shuffle(guildID uint64) (list []string, err error) {
+	res, err := LShuffle.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
-	}, time.Now()).Result()
+	}, time.Now().UnixNano()).Result()
 	if err != nil {
-		return []string{}, err
+		return
 	}
 
-	return list.([]string), nil
+	intr := res.([]interface{})
+	list = make([]string, len(intr))
+	for i, t := range intr {
+		list[i] = t.(string)
+	}
+	return
 }
 
 // Splice splices the queue

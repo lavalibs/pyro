@@ -123,3 +123,13 @@ func TestMove(t *testing.T) {
 	assert.Equal(t, []string{"a", "c", "b", "d", "e"}, list)
 	q.c.FlushDB()
 }
+
+func TestShuffle(t *testing.T) {
+	tracks := []string{"a", "b", "c", "d"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	list, err := q.Shuffle(1)
+	assert.NoError(t, err)
+	assert.NotEqual(t, tracks, list)
+}
