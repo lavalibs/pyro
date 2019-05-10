@@ -107,4 +107,19 @@ func TestNext(t *testing.T) {
 	list, err := q.List(1, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"c", "d", "e"}, list)
+	q.c.FlushDB()
+}
+
+func TestMove(t *testing.T) {
+	tracks := []string{"a", "b", "c", "d", "e"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	err = q.Move(1, 1, 2)
+	assert.NoError(t, err)
+
+	list, err := q.List(1, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "c", "b", "d", "e"}, list)
+	q.c.FlushDB()
 }

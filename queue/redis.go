@@ -132,7 +132,7 @@ func (q *RedisQueue) Next(guildID uint64, count int) (skipped []string, err erro
 func (q *RedisQueue) Move(guildID uint64, from, to int) error {
 	return LMove.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
-	}, from, to).Err()
+	}, -from-1, -to-1).Err()
 }
 
 // Shuffle shuffles the queue
