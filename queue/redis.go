@@ -182,8 +182,12 @@ func (q *RedisQueue) Trim(guildID uint64, start, end int) error {
 }
 
 // NowPlaying gets the currently playing track
-func (q *RedisQueue) NowPlaying(guildID uint64) (string, error) {
-	return q.c.LIndex(keys.PrefixPlayerPrevious.Fmt(guildID), 0).Result()
+func (q *RedisQueue) NowPlaying(guildID uint64) (np string, err error) {
+	np, err = q.c.LIndex(keys.PrefixPlayerPrevious.Fmt(guildID), 0).Result()
+	if err != nil && err == redis.Nil {
+		err = nil
+	}
+	return
 }
 
 // List lists the songs in the queue

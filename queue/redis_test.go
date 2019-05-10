@@ -156,3 +156,20 @@ func TestTrim(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a", "b", "c"}, list)
 }
+
+func TestNowPlaying(t *testing.T) {
+	tracks := []string{"a", "b", "c"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	np, err := q.NowPlaying(1)
+	assert.NoError(t, err)
+	assert.Empty(t, np)
+
+	skipped, err := q.Next(1, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a"}, skipped)
+
+	np, err = q.NowPlaying(1)
+	assert.Equal(t, "a", np)
+}
