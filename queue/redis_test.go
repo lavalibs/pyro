@@ -133,3 +133,13 @@ func TestShuffle(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, tracks, list)
 }
+
+func TestSplice(t *testing.T) {
+	tracks := []string{"a", "b", "c", "d"}
+	err := q.Set(1, tracks)
+	assert.NoError(t, err)
+
+	list, err := q.Splice(1, 1, 2, "x", "y", "z")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "x", "y", "z", "d"}, list)
+}

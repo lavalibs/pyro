@@ -153,7 +153,7 @@ func (q *RedisQueue) Shuffle(guildID uint64) (list []string, err error) {
 }
 
 // Splice splices the queue
-func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...string) ([]string, error) {
+func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...string) (list []string, err error) {
 	args := make([]interface{}, len(tracks)+2)
 	args[0] = start
 	args[1] = deleteCount
@@ -161,14 +161,19 @@ func (q *RedisQueue) Splice(guildID uint64, start, deleteCount int, tracks ...st
 		args[i+2] = track
 	}
 
-	list, err := LRevSplice.Run(q.c, []string{
+	res, err := LRevSplice.Run(q.c, []string{
 		keys.PrefixPlayerQueue.Fmt(guildID),
 	}, args...).Result()
 	if err != nil {
-		return []string{}, err
+		return
 	}
 
-	return list.([]string), nil
+	intr := res.([]interface{})
+	list = make([]string, len(intr))
+	for i, t := range intr {
+		list[i] = t.(string)
+	}
+	return
 }
 
 // Trim trims the queue
