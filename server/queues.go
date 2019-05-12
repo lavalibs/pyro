@@ -41,7 +41,7 @@ func (s *Server) PatchSongs(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	err = s.Queue.Add(guildID, tracks)
+	err = s.Queue.Put(guildID, tracks)
 	if err != nil {
 		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return

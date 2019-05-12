@@ -6,6 +6,7 @@ import (
 
 	"github.com/buaazp/fasthttprouter"
 	"github.com/lavalibs/pyro/lavalink"
+	"github.com/lavalibs/pyro/queue"
 	"github.com/lavalibs/pyro/store"
 	"github.com/valyala/fasthttp"
 )
@@ -16,7 +17,7 @@ type Server struct {
 	Conn  *lavalink.Connection
 	HTTP  *lavalink.HTTP
 	Cache store.Lavalink
-	Queue store.Queue
+	Queue queue.Queue
 }
 
 // Serve data from this server
