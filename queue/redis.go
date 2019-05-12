@@ -63,6 +63,11 @@ type RedisQueue struct {
 	c *redis.Client
 }
 
+// Redis makes a new Redis queue
+func Redis(c *redis.Client) *RedisQueue {
+	return &RedisQueue{c}
+}
+
 // Add adds songs to the end queue
 func (q *RedisQueue) Add(guildID uint64, tracks []string) error {
 	intr := make([]interface{}, len(tracks))
